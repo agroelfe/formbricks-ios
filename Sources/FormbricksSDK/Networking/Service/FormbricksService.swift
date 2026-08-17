@@ -1,5 +1,10 @@
 /// FormbricksService is a service class that handles the network requests for Formbricks API.
 class FormbricksService: FormbricksServiceProtocol {
+    private let requestInterceptor: RequestInterceptor?
+    
+    init(requestInterceptor: RequestInterceptor? = nil) {
+        self.requestInterceptor = requestInterceptor
+    }
 
     // MARK: - Workspace -
     /// Fetch the current workspace state.
@@ -25,12 +30,12 @@ protocol FormbricksServiceProtocol {
       attributes: [String: AttributeValue]?,
       completion: @escaping (ResultType<PostUserRequest.Response>) -> Void
     )
-  }
+}
 
 private extension FormbricksService {
     /// Creates the APIClient operation and adds it to the queue
     func execute<Request: CodableRequest>(_ request: Request, withCompletion completion: @escaping (ResultType<Request.Response>) -> Void) {
-        let operation = APIClient(request: request, completion: completion)
+        let operation = APIClient(request: request, requestInterceptor: requestInterceptor, completion: completion)
         Formbricks.apiQueue?.addOperation(operation)
     }
 }

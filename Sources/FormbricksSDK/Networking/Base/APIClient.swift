@@ -4,11 +4,18 @@ class APIClient<Request: CodableRequest>: Operation, @unchecked Sendable {
     
     private let session: URLSession
     private let request: Request
+    private weak var requestInterceptor: RequestInterceptor?
     private let completion: ((ResultType<Request.Response>) -> Void)?
     
-    init(request: Request, session: URLSession = .shared, completion: ((ResultType<Request.Response>) -> Void)?) {
+    init(
+        request: Request,
+        session: URLSession = .shared,
+        requestInterceptor: RequestInterceptor? = nil,
+        completion: ((ResultType<Request.Response>) -> Void)?
+    ) {
         self.request = request
         self.session = session
+        self.requestInterceptor = requestInterceptor
         self.completion = completion
     }
     
@@ -19,6 +26,17 @@ class APIClient<Request: CodableRequest>: Operation, @unchecked Sendable {
         }
         
         let urlRequest = createURLRequest(forURL: finalURL)
+        if let requestInterceptor {
+            requestInterceptor.intercept(request: urlRequest) { urlRequest in
+                // strong self capture is entended to keep APIClient instance alive untile this closure is called.
+                self.performRequest(urlRequest)
+            }
+        } else {
+            performRequest(urlRequest)
+        }
+    }
+    
+    private func performRequest(_ urlRequest: URLRequest) {
         logRequest(urlRequest)
         
         session.dataTask(with: urlRequest) { data, response, error in

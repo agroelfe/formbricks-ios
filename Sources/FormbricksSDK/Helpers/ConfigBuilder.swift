@@ -11,19 +11,30 @@ import Foundation
     let customService: FormbricksServiceProtocol?
     /// True if this config was built using the deprecated `environmentId` parameter.
     let usedDeprecatedEnvironmentId: Bool
+    let requestInterceptor: RequestInterceptor?
 
     /// Backward-compatible alias for `workspaceId`.
     @available(*, deprecated, renamed: "workspaceId", message: "Use workspaceId instead. environmentId will be removed in a future version.")
     @objc public var environmentId: String { workspaceId }
 
-    init(appUrl: String, workspaceId: String, userId: String?, attributes: [String: AttributeValue]?, logLevel: LogLevel, customService: FormbricksServiceProtocol?, usedDeprecatedEnvironmentId: Bool = false) {
-            self.appUrl = appUrl
-            self.workspaceId = workspaceId
-            self.userId = userId
-            self.attributes = attributes
-            self.logLevel = logLevel
-            self.customService = customService
-            self.usedDeprecatedEnvironmentId = usedDeprecatedEnvironmentId
+    init(
+        appUrl: String,
+        workspaceId: String,
+        userId: String?,
+        attributes: [String: AttributeValue]?,
+        logLevel: LogLevel,
+        customService: FormbricksServiceProtocol?,
+        usedDeprecatedEnvironmentId: Bool = false,
+        requestInterceptor: RequestInterceptor?
+    ) {
+        self.appUrl = appUrl
+        self.workspaceId = workspaceId
+        self.userId = userId
+        self.attributes = attributes
+        self.logLevel = logLevel
+        self.customService = customService
+        self.usedDeprecatedEnvironmentId = usedDeprecatedEnvironmentId
+        self.requestInterceptor = requestInterceptor
     }
 
     /// The builder class for the FormbricksConfig object.
@@ -36,6 +47,7 @@ import Foundation
         /// Optional custom service, injected via Builder
         var customService: FormbricksServiceProtocol?
         var usedDeprecatedEnvironmentId: Bool = false
+        var requestInterceptor: RequestInterceptor?
 
         /// Initializes the builder with the workspace ID.
         @objc public init(appUrl: String, workspaceId: String) {
@@ -88,6 +100,12 @@ import Foundation
             self.logLevel = logLevel
             return self
         }
+        
+        /// Sets an interceptor to modify every network request
+        @objc public func set(requestInterceptor: RequestInterceptor) -> Builder {
+            self.requestInterceptor = requestInterceptor
+            return self
+        }
 
         func service(_ svc: FormbricksServiceProtocol) -> FormbricksConfig.Builder {
             self.customService = svc
@@ -96,7 +114,16 @@ import Foundation
 
         /// Builds the FormbricksConfig object from the Builder object.
         @objc public func build() -> FormbricksConfig {
-            return FormbricksConfig(appUrl: appUrl, workspaceId: workspaceId, userId: userId, attributes: attributes, logLevel: logLevel, customService: customService, usedDeprecatedEnvironmentId: usedDeprecatedEnvironmentId)
+            return FormbricksConfig(
+                appUrl: appUrl,
+                workspaceId: workspaceId,
+                userId: userId,
+                attributes: attributes,
+                logLevel: logLevel,
+                customService: customService,
+                usedDeprecatedEnvironmentId: usedDeprecatedEnvironmentId,
+                requestInterceptor: requestInterceptor
+            )
         }
     }
 }

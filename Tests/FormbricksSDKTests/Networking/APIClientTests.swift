@@ -675,6 +675,55 @@ final class APIClientTests: XCTestCase {
         apiClient.main()
         wait(for: [expectation], timeout: 1.0)
     }
+    
+    func testRequestInterception() {
+        // Given
+        let expectation = XCTestExpectation(description: "API call completes")
+        let interceptionExpectation = XCTestExpectation(description: "Interceptor is called")
+        let mockResponse = MockResponse(id: "123", name: "Test")
+        let responseData = try! JSONEncoder().encode(mockResponse)
+        
+        let request = MockRequest(
+            baseURL: "https://api.test.com",
+            requestEndPoint: "/test/{environmentId}",
+            requestType: .get
+        )
+        
+        let mockInterceptor = MockInterceptor(
+            expectation: interceptionExpectation,
+            mockHeaders: ["Custom-Auth": "T0K3N"]
+        )
+        
+        mockURLSession.mockData = responseData
+        mockURLSession.mockResponse = HTTPURLResponse(
+            url: URL(string: "https://api.test.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )
+        mockURLSession.onRequest = { request in
+            // Then
+            for (header, value) in mockInterceptor.mockHeaders {
+                XCTAssertEqual(request.allHTTPHeaderFields?[header], value)
+            }
+        }
+        
+        // When
+        sut = APIClient(request: request, session: mockURLSession, requestInterceptor: mockInterceptor) { result in
+            // Then
+            switch result {
+            case .success(let response):
+                XCTAssertEqual(response.id, "123")
+                XCTAssertEqual(response.name, "Test")
+            case .failure(let error):
+                XCTFail("Expected success but got error: \(error)")
+            }
+            expectation.fulfill()
+        }
+        
+        sut.main()
+        wait(for: [expectation], timeout: 1.0)
+    }
 }
 
 // MARK: - Mock URLSession
@@ -684,8 +733,11 @@ private class MockURLSession: URLSession {
     var mockResponse: URLResponse?
     var mockError: Error?
     
+    var onRequest: ((URLRequest) -> Void)?
+    
     override func dataTask(with request: URLRequest, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
-        return MockURLSessionDataTask {
+        return MockURLSessionDataTask { [onRequest = self.onRequest] in
+            onRequest?(request)
             completionHandler(self.mockData, self.mockResponse, self.mockError)
         }
     }
@@ -702,3 +754,22 @@ private class MockURLSessionDataTask: URLSessionDataTask {
         completion()
     }
 } 
+
+private final class MockInterceptor: RequestInterceptor {
+    let expectation: XCTestExpectation
+    let mockHeaders: [String: String]
+    
+    init(expectation: XCTestExpectation, mockHeaders: [String: String] = [:]) {
+        self.expectation = expectation
+        self.mockHeaders = mockHeaders
+    }
+    
+    func intercept(request: URLRequest) -> URLRequest {
+        defer { expectation.fulfill() }
+        var request = request
+        for (header, value) in mockHeaders {
+            request.setValue(value, forHTTPHeaderField: header)
+        }
+        return request
+    }
+}

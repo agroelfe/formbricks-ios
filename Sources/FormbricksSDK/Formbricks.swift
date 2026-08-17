@@ -79,7 +79,8 @@ import Network
            return
        }
         
-        let svc: FormbricksServiceProtocol = config.customService ?? FormbricksService()
+        let svc: FormbricksServiceProtocol = config.customService
+            ?? FormbricksService(requestInterceptor: config.requestInterceptor)
         
         userManager = UserManager()
         userManager?.service = svc
