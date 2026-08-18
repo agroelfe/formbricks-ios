@@ -95,7 +95,7 @@ import Network
             self.language = language
         }
     
-        presentSurveyManager = PresentSurveyManager()
+        presentSurveyManager = PresentSurveyManager(requestInterceptor: config.requestInterceptor)
         surveyManager = SurveyManager.create(userManager: userManager!, presentSurveyManager: presentSurveyManager!, service: svc)
         userManager?.surveyManager = surveyManager
         

@@ -5,9 +5,11 @@ import SwiftUI
 final class FormbricksViewModel: ObservableObject {
     @Published var htmlString: String?
     let surveyId: String
+    let requestInterceptor: RequestInterceptor?
 
-    init(workspaceResponse: WorkspaceResponse, surveyId: String) {
+    init(workspaceResponse: WorkspaceResponse, surveyId: String, requestInterceptor: RequestInterceptor?) {
         self.surveyId = surveyId
+        self.requestInterceptor = requestInterceptor
         if let webviewDataJson = WebViewData(workspaceResponse: workspaceResponse, surveyId: surveyId).getJsonString(),
            let surveyScriptUrl = FormbricksWorkspace.surveyScriptUrlString {
             // Base64-encode the payload before injecting it into the HTML. Base64 output is

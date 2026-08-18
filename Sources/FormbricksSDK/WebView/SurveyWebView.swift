@@ -7,6 +7,7 @@ import SafariServices
 struct SurveyWebView: UIViewRepresentable {
     let surveyId: String
     let htmlString: String
+    let requestInterceptor: RequestInterceptor?
     
     /// Assemble the WKWebView with the necessary configuration.
     public func makeUIView(context: Context) -> WKWebView {
@@ -20,11 +21,13 @@ struct SurveyWebView: UIViewRepresentable {
         
         let webViewConfig = WKWebViewConfiguration()
         webViewConfig.userContentController = userContentController
+        webViewConfig.setURLSchemeHandler(URLSchemeHandler(requestInterceptor: requestInterceptor), forURLScheme: "formbricks")
         
         let webView = WKWebView(frame: .zero, configuration: webViewConfig)
         webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         webView.isOpaque = false
         webView.backgroundColor = UIColor.clear
+        
         // Web Inspector is a debugging aid only; never expose the survey WebView
         // to inspection in release builds (avoids leaking payload/responses and
         // allowing DOM/JS tampering on production devices).
@@ -120,6 +123,79 @@ extension SurveyWebView {
                     JsMessageHandler.openExternalURL(url)
                 }
             }
+        }
+    }
+}
+
+extension SurveyWebView {
+    class URLSchemeHandler: NSObject, WKURLSchemeHandler {
+        private let requestInterceptor: RequestInterceptor?
+        private let session: URLSession
+        private var ongoingTasks: [OngoingTask] = []
+        
+        private struct OngoingTask {
+            var wkTask: any WKURLSchemeTask
+            var urlSessionTask: URLSessionDataTask
+        }
+        
+        init(
+            requestInterceptor: RequestInterceptor?,
+            session: URLSession = .shared
+        ) {
+            self.requestInterceptor = requestInterceptor
+            self.session = session
+        }
+        
+        func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
+            Formbricks.logger?.info("WebView start request \(urlSchemeTask.request.url?.absoluteString ?? "nil")")
+            let request = replaceURLScheme(request: urlSchemeTask.request)
+            if let requestInterceptor {
+                requestInterceptor.intercept(request: request) { [weak self] request in
+                    self?.performRequest(urlRequest: request, urlSchemeTask: urlSchemeTask)
+                }
+            } else {
+                performRequest(urlRequest: request, urlSchemeTask: urlSchemeTask)
+            }
+        }
+        
+        func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
+            guard let index = ongoingTasks.firstIndex(where: { $0.wkTask === urlSchemeTask }) else { return }
+            ongoingTasks[index].urlSessionTask.cancel()
+            ongoingTasks.remove(at: index)
+        }
+        
+        private func performRequest(urlRequest: URLRequest, urlSchemeTask: any WKURLSchemeTask) {
+            let dataTask = session.dataTask(with: urlRequest) { data, response, error in
+                Formbricks.logger?.info("WebView loaded request \(urlRequest.url?.absoluteString ?? "nil")")
+                if let response {
+                    Formbricks.logger?.info("WebView got response \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                    urlSchemeTask.didReceive(response)
+                }
+                if let error {
+                    Formbricks.logger?.info("WebView got error \(error)")
+                    urlSchemeTask.didFailWithError(error)
+                }
+                if let data {
+                    Formbricks.logger?.info("WebView got data \(String(data: data, encoding: .utf8) ?? "nil")")
+                    urlSchemeTask.didReceive(data)
+                }
+                urlSchemeTask.didFinish()
+            }
+            ongoingTasks.append(.init(wkTask: urlSchemeTask, urlSessionTask: dataTask))
+            dataTask.resume()
+        }
+        
+        private func replaceURLScheme(request: URLRequest) -> URLRequest {
+            guard let url = request.url, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+                return request
+            }
+            guard components.scheme == "formbricks" else { return request }
+            components.scheme = "https"
+            
+            guard let newURL = components.url else { return request }
+            var request = request
+            request.url = newURL
+            return request
         }
     }
 }

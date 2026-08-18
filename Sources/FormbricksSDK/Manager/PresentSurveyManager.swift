@@ -2,7 +2,9 @@ import SwiftUI
 
 /// Presents a survey webview from the top-most view controller in the key window.
 final class PresentSurveyManager {
-    init() {
+    var requestInterceptor: RequestInterceptor?
+    init(requestInterceptor: RequestInterceptor?) {
+        self.requestInterceptor = requestInterceptor
         /*
          This empty initializer prevents external instantiation of the PresentSurveyManager class.
          The class serves as a namespace for the present method, so instance creation is not needed and should be restricted.
@@ -63,7 +65,12 @@ final class PresentSurveyManager {
             }
 
             let view = FormbricksView(
-                viewModel: FormbricksViewModel(workspaceResponse: workspaceResponse, surveyId: id))
+                viewModel: FormbricksViewModel(
+                    workspaceResponse: workspaceResponse,
+                    surveyId: id,
+                    requestInterceptor: requestInterceptor
+                )
+            )
             let vc = UIHostingController(rootView: view)
             vc.modalPresentationStyle = .overFullScreen
             vc.modalTransitionStyle = .crossDissolve

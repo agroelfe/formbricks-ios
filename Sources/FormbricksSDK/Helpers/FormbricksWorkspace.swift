@@ -10,9 +10,12 @@ internal enum FormbricksWorkspace {
     /// Returns the full survey‐script URL as a String
     static var surveyScriptUrlString: String? {
         guard let baseURLString = baseApiUrl,
-            let baseURL = URL(string: baseURLString),
-            baseURL.scheme == "https" || baseURL.scheme == "http"
+              var baseURLComponents = URLComponents(string: baseURLString)
         else {
+            return nil
+        }
+        baseURLComponents.scheme = "formbricks"
+        guard let baseURL = baseURLComponents.url else {
             return nil
         }
         let surveyScriptURL = baseURL.appendingPathComponent("js").appendingPathComponent(
